@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>侍への道 — Pelacak Keaktifan Bahasa Jepang</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;600;700;800&family=Noto+Sans+JP:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+
+<!-- ===== Supabase (backend gratis untuk menyimpan data secara permanen) ===== -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+
+<style>
+:root{
+  --indigo-deep:#152436;
+  --indigo-mid:#1f3a54;
+  --indigo-line:#2c4d6b;
+  --paper:#e9e2cd;
+  --paper-dark:#d9cfae;
+  --paper-line:#c7bb95;
+  --ink:#211d16;
+  --ink-soft:#4b453a;
+  --on-indigo:#eee6d2;
+  --on-indigo-soft:#b7c3cf;
+  --vermillion:#b23a2e;
+  --vermillion-dark:#8f2e24;
+  --gold:#b8863c;
+  --jade:#4c7a63;
+  --shadow: 0 10px 30px rgba(9,15,22,.35);
+  --r-ashigaru:#8b8a72;
+  --r-goshi:#5f8a5a;
+  --r-samurai:#3d7a95;
+  --r-hatamoto:#3d5f9b;
+  --r-karo:#7d4f9e;
+  --r-daimyo:#b23a2e;
+  --r-shogun:#b8863c;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:
+    radial-gradient(circle at 8% 0%, rgba(255,255,255,.04), transparent 40%),
+    linear-gradient(180deg, var(--indigo-deep), #101c29 60%);
+  color:var(--on-indigo);
+  font-family:'Noto Sans JP', sans-serif;
+  min-height:100vh;
+  padding:18px;
+}
+.num{font-family:'JetBrains Mono', monospace;}
+
+/* ===== Header ===== */
+.topbar{
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  flex-wrap:wrap;
+  padding:18px 22px;
+  border-radius:16px;
+  background:linear-gradient(135deg, var(--indigo-mid), var(--indigo-deep));
+  border:1px solid var(--indigo-line);
+  box-shadow:var(--shadow);
+  margin-bottom:16px;
+}
+.brand{display:flex; flex-direction:column; gap:2px;}
+.brand-kanji{
+  font-family:'Shippori Mincho', serif;
+  font-size:28px; font-weight:800; letter-spacing:2px;
+  color:var(--on-indigo);
+}
+.brand-sub{font-size:12px; color:var(--on-indigo-soft); letter-spacing:.3px;}
+.class-select{display:flex; align-items:center; gap:10px;}
+.class-select label{font-size:12px; color:var(--on-indigo-soft);}
+select#classPicker{
+  appearance:none;
+  background:var(--indigo-deep);
+  color:var(--on-indigo);
+  border:1px solid var(--indigo-line);
+  padding:10px 14px;
+  border-radius:10px;
+  font-family:'Noto Sans JP',sans-serif;
+  font-weight:600;
+  font-size:14px;
+  cursor:pointer;
+}
+.class-meta{display:flex; gap:14px; font-size:12px; color:var(--on-indigo-soft);}
+.class-meta b{color:var(--on-indigo); font-family:'JetBrains Mono',monospace;}
+
+/* ===== Rank ladder (signature element) ===== */
+.ladder-wrap{
+  border-radius:16px;
+  background:linear-gradient(135deg, var(--indigo-mid), var(--indigo-deep));
+  border:1px solid var(--indigo-line);
+  box-shadow:var(--shadow);
+  padding:16px 20px 10px;
+  margin-bottom:16px;
+  overflow-x:auto;
+}
+.ladder{
+  display:flex; align-items:flex-end; gap:2px; min-width:640px;
+}
+.ladder-step{
+  flex:1; text-align:center; position:relative; padding-top:10px;
+}
+.ladder-step .bar{
+  height:10px; border-radius:6px 6px 0 0; margin:0 4px;
+  opacity:.35;
+}
+.ladder-step.active .bar{opacity:1; box-shadow:0 0 14px currentColor;}
+.ladder-step .kanji{
+  font-family:'Shippori Mincho', serif; font-size:18px; font-weight:700; margin-top:6px; display:block;
+}
+.ladder-step .name{font-size:10px; color:var(--on-indigo-soft); letter-spacing:.5px; text-transform:uppercase;}
+.ladder-step.active .kanji{color:#fff; text-shadow:0 0 10px currentColor;}
+.ladder-step .lv{font-size:9px; color:var(--on-indigo-soft); font-family:'JetBrains Mono',monospace;}
+
+/* ===== Layout ===== */
+.layout{display:grid; grid-template-columns:300px 1fr; gap:16px; align-items:start;}
+@media (max-width:900px){.layout{grid-template-columns:1fr;}}
+
+.panel{
+  background:linear-gradient(160deg, var(--paper), var(--paper-dark));
+  color:var(--ink);
+  border-radius:16px;
+  border:1px solid var(--paper-line);
+  box-shadow:var(--shadow);
+  padding:18px;
+}
+.panel h2{
+  font-family:'Shippori Mincho', serif; font-size:18px; margin:0 0 12px; color:var(--ink);
+  display:flex; align-items:center; gap:8px;
+}
+.panel h2 .eyebrow{
+  font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:var(--vermillion-dark);
+  font-family:'Noto Sans JP',sans-serif; font-weight:700;
+}
+
+/* Quest panel */
+#questForm{display:flex; flex-direction:column; gap:8px; margin-bottom:14px;}
+#questForm input{
+  border:1px solid var(--paper-line); background:#f4efdf; color:var(--ink);
+  border-radius:8px; padding:9px 10px; font-family:'Noto Sans JP',sans-serif; font-size:13px;
+}
+#questForm .row{display:flex; gap:8px;}
+#questForm .row input.exp-input{width:80px;}
+.btn{
+  border:none; border-radius:8px; padding:9px 12px; font-weight:700; font-size:13px;
+  cursor:pointer; font-family:'Noto Sans JP',sans-serif; transition:transform .12s ease, filter .12s ease;
+}
+.btn:hover{filter:brightness(1.08);}
+.btn:active{transform:scale(.97);}
+.btn-primary{background:var(--vermillion); color:#fff;}
+.btn-ghost{background:transparent; border:1px solid var(--paper-line); color:var(--ink-soft);}
+.btn-gold{background:var(--gold); color:#2a1c05;}
+.btn-small{padding:6px 9px; font-size:11px; border-radius:7px;}
+
+.quest-item{
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  background:#f4efdf; border:1px solid var(--paper-line); border-radius:10px;
+  padding:9px 10px; margin-bottom:8px;
+}
+.quest-item .qname{font-weight:600; font-size:13px; display:block;}
+.quest-item .qexp{font-size:11px; color:var(--vermillion-dark); font-family:'JetBrains Mono',monospace;}
+.quest-item .qbtns{display:flex; gap:6px;}
+.quest-item .icon-btn{
+  border:none; background:none; cursor:pointer; font-size:14px; color:var(--ink-soft); padding:2px 4px;
+}
+.quest-item .icon-btn:hover{color:var(--vermillion-dark);}
+.empty-note{font-size:12px; color:var(--ink-soft); font-style:italic;}
+
+/* Roster panel */
+.roster-toolbar{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px;}
+#searchStudent{
+  flex:1; min-width:180px; border:1px solid var(--paper-line); background:#f4efdf; color:var(--ink);
+  border-radius:8px; padding:9px 12px; font-size:13px; font-family:'Noto Sans JP',sans-serif;
+}
+.sort-buttons{display:flex; gap:6px;}
+.sort-buttons button{
+  background:#f4efdf; border:1px solid var(--paper-line); color:var(--ink-soft);
+  border-radius:7px; padding:7px 10px; font-size:11px; cursor:pointer; font-weight:600;
+}
+.sort-buttons button.active{background:var(--indigo-mid); color:var(--on-indigo); border-color:var(--indigo-mid);}
+
+.leaderboard{display:flex; gap:8px; margin-bottom:14px; overflow-x:auto; padding-bottom:4px;}
+.lb-card{
+  min-width:150px; background:linear-gradient(135deg,var(--indigo-mid),var(--indigo-deep));
+  color:var(--on-indigo); border-radius:10px; padding:10px 12px; position:relative; border:1px solid var(--indigo-line);
+}
+.lb-rank{position:absolute; top:6px; right:8px; font-family:'JetBrains Mono',monospace; font-size:11px; opacity:.7;}
+.lb-name{font-size:12px; font-weight:700; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.lb-exp{font-size:11px; color:var(--on-indigo-soft); font-family:'JetBrains Mono',monospace;}
+
+.roster-grid{
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(230px,1fr)); gap:12px;
+}
+.card{
+  background:#f4efdf; border:1px solid var(--paper-line); border-radius:12px; padding:12px;
+  position:relative; transition:box-shadow .15s ease, transform .15s ease;
+}
+.card:hover{box-shadow:0 6px 16px rgba(0,0,0,.12); transform:translateY(-2px);}
+.card-top{display:flex; gap:10px; align-items:center;}
+.badge{
+  position:relative; width:52px; height:52px; flex:none; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+}
+.badge svg{position:absolute; top:0; left:0;}
+.badge .kanji{
+  font-family:'Shippori Mincho', serif; font-weight:700; font-size:17px; z-index:2; color:#fff;
+  text-shadow:0 1px 3px rgba(0,0,0,.5);
+}
+.card-id{flex:1; min-width:0;}
+.card-name{font-weight:700; font-size:13.5px; line-height:1.25; overflow-wrap:anywhere;}
+.card-sub{font-size:10.5px; color:var(--ink-soft); font-family:'JetBrains Mono',monospace;}
+.card-rankline{font-size:10.5px; margin-top:2px; font-weight:600;}
+.expbar-wrap{margin-top:10px;}
+.expbar-labels{display:flex; justify-content:space-between; font-size:10px; color:var(--ink-soft); font-family:'JetBrains Mono',monospace; margin-bottom:3px;}
+.expbar{height:8px; background:var(--paper-line); border-radius:5px; overflow:hidden;}
+.expbar-fill{height:100%; border-radius:5px; transition:width .5s cubic-bezier(.2,.9,.3,1);}
+.card-actions{display:flex; flex-wrap:wrap; gap:5px; margin-top:10px;}
+.quick-btn{
+  background:var(--indigo-deep); color:var(--on-indigo); border:none; border-radius:6px;
+  padding:5px 8px; font-size:10.5px; font-weight:600; cursor:pointer;
+}
+.quick-btn:hover{background:var(--indigo-mid);}
+.quick-btn.plus5{background:var(--jade);}
+.quick-btn.plus10{background:var(--vermillion);}
+.custom-exp{display:flex; gap:4px; margin-top:6px;}
+.custom-exp input{width:52px; border:1px solid var(--paper-line); border-radius:6px; padding:4px 6px; font-size:11px;}
+.custom-exp button{border:none; border-radius:6px; background:var(--gold); color:#2a1c05; padding:4px 8px; font-size:10.5px; font-weight:700; cursor:pointer;}
+
+/* Modal */
+.modal-overlay{
+  position:fixed; inset:0; background:rgba(10,16,24,.6); display:none;
+  align-items:center; justify-content:center; z-index:50; padding:20px;
+}
+.modal-overlay.show{display:flex;}
+.modal-box{
+  background:var(--paper); color:var(--ink); border-radius:14px; padding:20px;
+  width:min(520px, 100%); max-height:80vh; overflow-y:auto; box-shadow:var(--shadow);
+}
+.modal-box h3{font-family:'Shippori Mincho',serif; margin-top:0;}
+.modal-list label{
+  display:flex; align-items:center; gap:8px; padding:7px 4px; border-bottom:1px solid var(--paper-line);
+  font-size:13px; cursor:pointer;
+}
+.modal-list input{width:16px; height:16px;}
+.modal-close{margin-top:14px; text-align:right;}
+
+/* Toasts */
+#toastContainer{position:fixed; bottom:20px; right:20px; z-index:80; display:flex; flex-direction:column; gap:8px;}
+.toast{
+  background:var(--indigo-deep); border:1px solid var(--gold); color:var(--on-indigo);
+  padding:10px 16px; border-radius:10px; font-size:13px; box-shadow:var(--shadow);
+  animation:toastIn .25s ease;
+}
+.toast.levelup{border-color:var(--vermillion); }
+.toast .t-title{font-weight:700; font-family:'Shippori Mincho',serif; font-size:14px;}
+@keyframes toastIn{from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:translateY(0);}}
+
+.reset-row{margin-top:16px; text-align:right;}
+.footnote{font-size:11px; color:var(--on-indigo-soft); text-align:center; margin-top:18px; opacity:.7;}
+
+/* ===== Admin login / mode badge ===== */
+.auth-box{display:flex; align-items:center; gap:10px;}
+.mode-badge{
+  font-size:11px; font-weight:700; padding:6px 10px; border-radius:20px;
+  letter-spacing:.3px; white-space:nowrap;
+}
+.mode-badge.guest{background:rgba(183,195,207,.15); color:var(--on-indigo-soft); border:1px solid var(--indigo-line);}
+.mode-badge.admin{background:rgba(184,134,60,.18); color:var(--gold); border:1px solid var(--gold);}
+.btn-auth{
+  border:none; border-radius:8px; padding:8px 12px; font-size:12px; font-weight:700;
+  cursor:pointer; font-family:'Noto Sans JP',sans-serif; background:var(--indigo-deep); color:var(--on-indigo);
+  border:1px solid var(--indigo-line);
+}
+.btn-auth:hover{filter:brightness(1.15);}
+.login-form{display:flex; flex-direction:column; gap:10px;}
+.login-form input{
+  border:1px solid var(--paper-line); background:#f4efdf; color:var(--ink);
+  border-radius:8px; padding:10px 12px; font-family:'Noto Sans JP',sans-serif; font-size:13px;
+}
+.login-error{color:var(--vermillion-dark); font-size:12px; min-height:16px;}
+.readonly-note{font-size:11px; color:var(--ink-soft); font-style:italic; margin:0 0 10px;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <span class="brand-kanji">侍への道</span>
+    <span class="brand-sub">Michi e no Samurai — Pelacak Keaktifan &amp; Level Bahasa Jepang</span>
+  </div>
+  <div class="class-select">
+    <label for="classPicker">Kelas</label>
+    <select id="classPicker"></select>
+  </div>
+  <div class="class-meta" id="classMeta"></div>
+  <div class="auth-box">
+    <span class="mode-badge guest" id="modeBadge">Mode: Lihat</span>
+    <button class="btn-auth" id="loginBtn">Login Admin</button>
+    <button class="btn-auth" id="logoutBtn" style="display:none;">Logout</button>
+  </div>
+</div>
+
+<div class="ladder-wrap">
+  <div class="ladder" id="rankLadder"></div>
+</div>
+
+<div class="layout">
+  <aside class="panel">
+    <h2><span class="eyebrow">Misi</span></h2>
+    <h2 style="margin-top:-10px;">Daftar Quest</h2>
+    <form id="questForm">
+      <input type="text" id="questName" placeholder="Nama quest (mis. Kuis Kosakata Bab 3)" required>
+      <div class="row">
+        <input type="number" class="exp-input" id="questExp" placeholder="EXP" min="1" value="15" required>
+        <button type="submit" class="btn btn-primary" style="flex:1;">+ Tambah Quest</button>
+      </div>
+    </form>
+    <div id="questList"></div>
+    <p class="empty-note" id="questEmptyNote" style="display:none;">Belum ada quest. Tambahkan quest pertamamu di atas.</p>
+
+    <div class="reset-row">
+      <button class="btn btn-ghost btn-small" id="resetClassBtn">Reset progres kelas ini</button>
+    </div>
+  </aside>
+
+  <section class="panel">
+    <h2><span class="eyebrow">Peserta Didik</span></h2>
+    <div class="roster-toolbar">
+      <input type="text" id="searchStudent" placeholder="Cari nama siswa...">
+      <div class="sort-buttons">
+        <button data-sort="default" class="active">Urut Absen</button>
+        <button data-sort="exp">Urut EXP</button>
+        <button data-sort="name">Urut Nama</button>
+      </div>
+    </div>
+    <div class="leaderboard" id="leaderboard"></div>
+    <div class="roster-grid" id="rosterGrid"></div>
+  </section>
+</div>
+
+<p class="footnote">Data tersimpan otomatis per kelas di akun ini. Level 1–35 · 7 kasta ksatria · dibuat untuk mapel Bahasa Jepang, SMA PGRI Takokak.</p>
+
+<div class="modal-overlay" id="questModal">
+  <div class="modal-box">
+    <h3 id="questModalTitle">Beri EXP Quest</h3>
+    <p class="empty-note">Centang siswa yang sudah menyelesaikan quest ini. Uncheck untuk membatalkan.</p>
+    <div class="modal-list" id="questModalList"></div>
+    <div class="modal-close"><button class="btn btn-primary" id="questModalClose">Selesai</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="loginModal">
+  <div class="modal-box" style="width:min(360px,100%);">
+    <h3>Login Admin</h3>
+    <form class="login-form" id="loginForm">
+      <input type="email" id="loginEmail" placeholder="Email admin" required autocomplete="username">
+      <input type="password" id="loginPassword" placeholder="Kata sandi" required autocomplete="current-password">
+      <div class="login-error" id="loginError"></div>
+      <button type="submit" class="btn btn-primary">Masuk</button>
+    </form>
+    <div class="modal-close"><button class="btn btn-ghost btn-small" id="loginModalClose">Batal</button></div>
+  </div>
+</div>
+
+<div id="toastContainer"></div>
+
+<script>
+/* ================= SUPABASE SETUP =================
+   1. Buat project gratis di https://supabase.com (Dashboard > New project).
+   2. Buka Project Settings > API, salin "Project URL" dan "anon public" key, tempel di bawah.
+   3. Buka SQL Editor, jalankan isi file setup.sql yang saya sertakan (ganti dulu
+      email admin di dalamnya).
+   4. Buka Authentication > Users > Add user, buat 1 user dengan email yang SAMA
+      dengan ADMIN_EMAIL di bawah ini & yang ada di setup.sql.
+================================================= */
+const SUPABASE_URL = "https://diismochxpkyqgoqfbte.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRpaXNtb2NoeHBreXFnb3FmYnRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyMTIxMzcsImV4cCI6MjEwMDc4ODEzN30.ogJTC3C3e03W_JygFVgcmq1nrvrnKe9A3fEbz3Qm6dE";
+const ADMIN_EMAIL = "simnjut9@gmail.com";
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let isAdmin = false;
+
+/* ================= DATA ================= */
+const RANKS = [
+  {key:"ashigaru", name:"Ashigaru", kanji:"足軽", min:1, max:5, color:"var(--r-ashigaru)"},
+  {key:"goshi", name:"Goshi", kanji:"郷士", min:6, max:10, color:"var(--r-goshi)"},
+  {key:"samurai", name:"Samurai", kanji:"侍", min:11, max:15, color:"var(--r-samurai)"},
+  {key:"hatamoto", name:"Hatamoto", kanji:"旗本", min:16, max:20, color:"var(--r-hatamoto)"},
+  {key:"karo", name:"Karo", kanji:"家老", min:21, max:25, color:"var(--r-karo)"},
+  {key:"daimyo", name:"Daimyo", kanji:"大名", min:26, max:30, color:"var(--r-daimyo)"},
+  {key:"shogun", name:"Shogun", kanji:"将軍", min:31, max:35, color:"var(--r-shogun)"}
+];
+const MAX_LEVEL = 35;
+
+// [nisn, name, gender]
+const ROSTERS = {
+"X1":[["0101489511","ABDILAH DAUD","L"],["3106185644","AGUNG GALIH BUDIMAN","L"],["0109600330","AISYAH DWI NOOR'AIDA","P"],["0106508596","ALISA CINTAMI OKTAVIANA","P"],["3101960952","AMIRA FEBRIANTI","P"],["0119715235","ANDIN DIANA","P"],["0102625507","ANESYA MAHARANI","P"],["0107207523","DIKTHA NURUL AINUN HIKMAH","P"],["0119558297","FITRI DAMAYANTI RAMDANI","P"],["0117769411","GHIFFARI FAZRI ABABIL","L"],["0091937594","HERMAWAN","L"],["0109612980","JHEMES FIKAR","L"],["0103598984","KIKI KAMALUDIN","L"],["0109043676","LAILA NUR SAFITRI","P"],["0113712536","M PAISAL APRILIANSAH","L"],["0101179996","M. RAMDAN","L"],["0116529439","MELLISYA PUTRI WIDIANI","P"],["0112466745","MUHAMMAD RANGGA APRIZAL","L"],["0104624853","RINA NURAINI","P"],["0101455088","RIPKI ADRIAN","L"],["0106292244","RISKI ARISTA","L"],["0112561956","SABILA BILQISNI AZZAHRA","P"],["3100878141","SEPIA NURINAYAH","P"],["0114737522","SINTA KOMALA","P"],["0102812639","SITI AISYAH","P"],["0107364276","SITI ELIYA MARIAM","P"],["0123549040","SITI JENABIAH","P"],["3100427396","SYIFA NUR PAROHA","P"],["0109510600","VIRA INDRIYANI","P"],["3102631745","YUSUF DEMIR","L"],["0118376893","ZAHRA WARDAH SEPTIANI","P"]],
+"X2":[["3117129456","ABDUL ROHMAN","L"],["0102468001","ALFIN ARDIAN","L"],["0107092257","ALMA YUSLIMAH","P"],["0108259401","ANDRIANA","L"],["0105180406","ANGGA PRATAMA PUTRA","L"],["0113223824","ANGGI IRAWANTI","P"],["0107620914","ARFAN RIJAKI","L"],["0108281651","DIAN KHOERUNISA","P"],["0109232728","ENENG SYIFA","P"],["0113973993","ERWIN ABU KHOLIQ","L"],["0107226263","FAISAL RUDIANSAH","L"],["0108896929","FIKRI MAULANA AKBAR","L"],["0114396071","KHAERUN NISA","P"],["0104099389","M. RIZKYANA FADILAH","L"],["0105309511","M.AZAM RANGGANA.G","L"],["0115604301","MUHAMMAD ALVI ALFAHRIZI HADAD","L"],["0104799302","MUHAMMAD FITRUL MU'IZ","L"],["0108485881","MUHAMMAD ISMAT TULLOH","L"],["0103293974","PADIL","L"],["0106700477","REIHAN RAMDANI","L"],["0101117886","RENA AGHISTA PUTRI","P"],["0107164425","REYVAN MAHESA PAMUNGKAS","L"],["0114416687","RINDI ARTIKA","P"],["0105013320","SAHLA SALSABILA","P"],["0105923457","SELAWATI","P"],["3106865730","SHEVIYA HERMAWAN","P"],["0118829607","SITI NURAENI","P"],["0115716529","SITI NURJANAH","P"],["0108176886","SYAHARA NAYLA MAHARANY","P"],["0112692244","TIA SETIAWATI","P"],["0118588413","TIARA KHAIRUNISSA","P"],["0104577989","TIARA NADILA","L"],["0106781842","WINA AULIA SAFITRI","P"],["0116696420","YONA APRILIA","P"]],
+"X3":[["0113057514","ANINDITA PUTRI APRILIANTI","P"],["0111227443","ANISA HERMAWATI","P"],["0099462737","ASEP AGIAN","L"],["0083032275","DAVA DIDRA H","L"],["0116263469","DENI SETIA","L"],["0117331936","DIMAS ADITYA MAULANA","L"],["0107535000","DZIKRAKA ZALFA PATTY","L"],["0119665357","FADIAH NURSAKINAH","P"],["0116695792","FAUZIA ZULIANITA","P"],["0114229591","M RAFI RAYHAN","L"],["0105590562","M. PAISAL IRWANSYAH","L"],["0111771783","MEISYA FYLIANANDA","P"],["0107348727","MUHAMAD KHOERUL FAHRI","L"],["0108856649","MUHAMAD LUTPI ALPARIZKI","L"],["3100305614","MUHAMAD PARHAN","L"],["0106541416","NOVI DIAN PERMATA","P"],["0108803933","NURAENI","P"],["0103493073","NURIRPANSYAH","L"],["0101715479","RAHMAT SETIADI","L"],["0112543646","RANTI NURHASANAH","P"],["0114054187","RENA","P"],["0107629731","REVAN ALDIANSYAH","L"],["0109987902","RIZKI FADIL AZMI","L"],["0116550321","SALWA LIYANTI","P"],["0119199839","SANI SELI AWALIYAH","P"],["0102737491","SANTIKA","P"],["0106753526","SARAH ALVIAH NURESWARI","P"],["0116323750","SHINDI MEILANI","P"],["3118968411","SHOPIA BILQIS","P"],["0116462970","SILFIANA","P"],["0119559035","SILVA NURFEBRIANTI","P"],["3104368528","SITI NURIAH","P"],["0115145180","WAFA ALFIYAH","P"]],
+"X4":[["0117219418","ADELIA","P"],["0113336159","AGIS PATWA HOIRUNISA","P"],["0118439344","AI NUR ROHIMAH","P"],["0115844131","ANGGITA","P"],["0118642916","APRILIA","P"],["0101955879","DAFFI SETIA EFFENDY","L"],["0108249260","DENIS","L"],["0114836501","ILAN NUR MARDINAH","P"],["0113374141","KAMAL","L"],["0109767356","MIRA SUMIRAH","P"],["0103916583","MUHAMAD HENDRA RIDWAN","L"],["0101604242","MUHAMAD LUCKY APRIANDI","L"],["0108142616","MUHAMAD NOVAL AL HADIAT PRATAMA","L"],["3117046087","MUHAMAD RIDWAN","L"],["3106620165","MUHAMAD RIFA RAMADAN","L"],["0103986206","NADILA ALFINDA","P"],["3113823137","NAJMII ALKHILA RIHHADATUL'AISY","P"],["0103126007","NISRINA SANTIA FITRI","P"],["0112773660","REFA NUR SITI WIDIYANA","P"],["0107532028","RISKI FIRMANSYAH","L"],["0112255295","RISKIA SAPUTRA RAMADAN","L"],["0105362081","RIZKI MAULANA","L"],["0102367796","RIZKY FAJAR SULAIMAN","L"],["3104327547","SATRIA ADWIN PRAYOGA","L"],["0116880406","SAYHRUL SIHAB ALWI WILDANI","L"],["0111669179","SEPTIANA DWI NINGRUM","P"],["0118792548","SHAKILA NUR ALIZA","P"],["0108411410","SILVA SANIAH","P"],["0113277696","SILVI NOPIANI","P"],["0101661452","SINTA AULIA SARI","P"],["0094313364","SULAEMAN","L"],["0106891939","WINDYA PUTRI","P"],["0117372345","ZASKIA ALINADIANSYAH","P"]],
+"X5":[["3104291852","AHMAD DERI SEPTIAN","L"],["0114107864","AMELIA SILVIANA RAHMA","P"],["0107688248","ANI","P"],["0113681514","ANJASMARA","L"],["0111872144","ASKA FRIDALOKA","P"],["0114269739","DEDE MISSUSANTI","P"],["0103505719","DENDA RAMADHAN","L"],["0106852662","FADLI","L"],["0106738036","ISMA MILAN DEWI","P"],["3112094768","JAHRA TUSIPA","P"],["0115555650","LALA APRILIA","P"],["0101166856","MUHAMAD ABDUL ROHMAN","L"],["0112306716","MUHAMAD ENDRIANSYAH","L"],["0103875601","MUHAMAD RAMDAN ILHAM SAPALAH","L"],["0101362569","MUHAMAD SAMSUL MAARIP NURPADILAH","L"],["0105912116","MUHAMMAD RAPLI","L"],["3113344201","MUHAMMAD SAEPUL AKBAR","L"],["3101680468","MUHAMMAD SULTANUDIN","L"],["0109084862","MUHAMMAD WIRDAN ALWAN ASAEPUDIN","L"],["0115563458","NAJWA NUR FITRIA","P"],["0108891659","NENG MUTIARA","P"],["0117652449","NOVITASARI FEBRIANTY","P"],["3118551446","NURYANTI","P"],["0111682450","RAHMAH","P"],["0108084604","RANDI AGUSTIN","L"],["0101368553","REFKY ABDURRAHMAN","L"],["3128107422","REGA MULYANA","L"],["0108441639","RIRI RISTIANTI","P"],["0118720181","RISA SEFTIA AZAHRA","P"],["0111581779","RISKA PITRIYANI","P"],["0102096550","SRI TIARA","P"],["0109582217","SUSANTI","P"],["0113117605","SYABILLA ARSYLLIA PUTRI FITRIANA","P"]],
+"X6":[["0118028915","AHMAD MAULANA RIZQI","L"],["3110847319","ALIYA FITRIANI","P"],["0102008806","ARI SANUSI","L"],["3110374367","ASRI NOVYANI","P"],["0119116141","ASTIYANA KHOERUNNISA","P"],["0113328514","AULIA HUSNAH","P"],["0115500699","AULIA RAHMAH","P"],["0117501505","BUNGA DESTRIANI NURAHMAT","P"],["0105181134","CECEP RIZWAN RIVKI SETIAWAN","L"],["0107246621","DEWI SRI WAHYUNI","P"],["0102479261","INAYAH AZMI ATRIFAH","P"],["0116768894","IRA YULIYANA","P"],["0111557107","M. FACHRI","L"],["0106786513","MUHAMAD HAIKAL SAPUTRA","L"],["0117929687","MUHAMMAD YUSUF AL'ANSHORI","L"],["3108462727","NENG SITI SAFIRA HABIBI","P"],["0101341902","PAISAL MUHAMAD RAMDAN","L"],["0106713518","PUTRA ANANDA PRATAMA","L"],["0114146602","RADIFAN AL-MUHAIMIN","L"],["0109070140","RAHAYU NUGRAHA","L"],["0103779945","RAISYA JULIANITA","P"],["0109888282","RANI YULIANA","P"],["0109802564","RENDI RAMDANI","L"],["0096747703","REZKI ADITIA PUTRA","L"],["0108056134","RINA JULIANI","P"],["0105423162","RINDA YANI","P"],["0107473373","RIVALDO NARA NADIAN PRATAMA","L"],["0115254104","RIZKI ALPIANSYAH","L"],["0095460232","SANDI","L"],["0114625121","SASKIA","P"],["0101990126","SASKIA FAUZIAH","P"],["0108382604","YANTI","P"]],
+"XI1":[["-","ABDAL ABI HASANI","L"],["0103467494","ABDUL AZIZ ILHAM. S","L"],["0094664805","ABNU ALIF REVAN REGIHAN","L"],["0103806889","AI SINTA NUR BAWIAH","P"],["0094855966","AJENG AYU FITRIYA","P"],["0106811123","ANITA SUHESTI","P"],["0092719148","ARI LIA ALPAREJA","L"],["0092519360","BULDAN MUHAMMAD KHOERUDIN","L"],["0105721962","DAVA ZAINI ILHAM","L"],["0099133698","DINI RAHAYU","P"],["0106286745","DITA SRI ANDINI","P"],["0098216008","ECHA AMELIA","P"],["0102059901","EGI PUTRA","L"],["0094722634","FAIZAL RIZKI HERLAMBANG","L"],["3109514590","FEBY ANDINI PUTRI","P"],["0091191476","JONI ISKANDAR","L"],["0098129961","M. CHUSNI PADILAH","L"],["0099020851","M. IKBAL SAPUTRA","L"],["0098449935","MUHAMAD IHSAN TAUFIK","L"],["0091246604","NADIA SITI NURAENI","P"],["0107387939","NAHLA ARDIAN ZAHRANI","P"],["3092607517","NAILLA RAHADATUL AISY","P"],["0091829277","NAURA HADI LASHYFA","P"],["0108182112","NUR AINA","P"],["0099303660","PIRMAN ALDIANSAH","L"],["0092366659","RANGGA ARYA WINATA","L"],["0101445820","RAYAEN MEIDIAN HIDAYAT","L"],["0107314841","RESKI APRILIA PUTRI","P"],["0105039142","RESPATI SATRIA WIBOWO","L"],["3101935705","SELVIA","P"],["0092815845","SEPTI PITRIANI","P"],["0094515058","SILVIA","P"],["0101847948","SINTA","P"],["0107738761","SINTA ADRIANTI","P"],["0099174863","SIPA NURALIA RUSWAN","P"],["0097801125","SITI AMINAH","P"],["0102638182","SITI RAHMAH NUR AIDA","P"]],
+"XI2":[["0098713314","ABDUL MUHAEMIN M.WAFA","L"],["0105557664","ADELLIA PUTRI","P"],["0091859786","ADJIE ADAM SUSANTO","L"],["0102394772","AFNAN ATALIANA","P"],["0108032602","ALYA SILVANA","P"],["0097842306","ANDINI","P"],["0106410925","CHEYLLA ZHYRA AZZAHRA","P"],["0102100753","DEDE AGUSTIAN RAMDANI","L"],["0099635567","DICKY PERNANDO","L"],["0101131778","DILA NANDA AYU","P"],["0091017158","ERIK SETIAWAN","L"],["0091531291","FABIAN ARDIANSYAH","L"],["0093991998","IKBAL NUR PERMANA","L"],["0097243901","ILYAS RIJWANULOH","L"],["3108754844","INTAN AULIA","P"],["3097528168","KAILLA RAHADATUL AISY","P"],["0105546536","LINDA SRI RAHAYU","P"],["0107501209","LOLA PITALOKA","P"],["0103335222","M.REZA.S.","L"],["3090245873","MUHAMAD AIDIL AKBAR","L"],["0102415387","MUHAMAD ANDREARSHAVIN","L"],["0085883645","MUHAMAD BASITUL ROHMAN","L"],["0098040164","MUHAMAD IRFAN","L"],["0092238755","MUHAMAD RENO HIDAYATULLOH","L"],["0102047265","NADILA SYAHIRA","P"],["0099703892","NOVI MULYANI","P"],["0092484372","NOVVA ARDYANI","P"],["0101963283","NURAENI SELVIA","P"],["0102008113","REREY REYNA SETIANI","P"],["0099272642","RIANA","L"],["0101924884","RIKA AMELLIA","P"],["0099023781","RIZKY ANWAR PRATAMA","L"],["0093596714","SAEPUL AZIZ MAULANA","L"],["0106790999","SALWA NUR PAILASUPI","P"],["0092543294","SALWA SRI WAHYUNI","P"],["0109913558","SELPI AGUSTINA","P"],["0084719061","SITI RAHMAWATI","P"]],
+"XI3":[["0092099904","ADIS SETIAWAN","L"],["0098492795","AGUNG SETIAWAN","L"],["0105755448","AL MAURA MEIDINA ELYANANDA","P"],["0094758577","ALINSYA PUTRI","P"],["-","ARIL RAZMAN SETIAWAN","L"],["0109686738","BINTANG MAULIDINA LISWARA","L"],["0092283912","DANU HERMAWAN","L"],["0095294924","DEDE","L"],["0097459620","DESMITA AULIA SARI","P"],["0091872377","DIMAS SABDILLAH","L"],["0091810724","DISYA CAHYA PUTRI MAHARANI","P"],["0098223969","ELSA OKTAPIANI","P"],["0103944801","KARINA","P"],["3086893117","KUSTIANA","L"],["0107244897","M MAGHFIRLY HIDAYAT","L"],["0099471216","M. SULTAN ANUGRAH","L"],["0091240390","MONALISA TASYA ANANDA","P"],["0092372234","MUHAMAD HARISTIANA","L"],["0093178227","MUHAMMAD RIPAN","L"],["0109102909","NAISIYSA ROYANTI","P"],["0104152373","NENG RINI ANGGARAENI","P"],["0085687862","NUR CINTA WAHYUNI","P"],["0081269359","NURHAYATI","P"],["0096396767","PEBI PEBRIANSYAH","L"],["0092981270","RAJU MAULANA","L"],["0096602523","RIDWAN","L"],["-","RIFFAL MULFI DAUZ SOMANTRI","L"],["0101471316","RINDY RISTIA","P"],["0098124056","RUSTANDI","L"],["3104908135","SELA DEVIANA SAFITRI","P"],["3106799887","SELA RAHMAWATI","P"],["0094808865","SEPTIAN ADITIA","L"],["0108868349","SILVI ROSIANTI","P"],["0109250162","SITI NAILA SOPARIAH","P"],["3101200301","SITI NUR AZIZAH","P"],["0092981401","SITI NURAENI","P"],["0092864065","TIO SETIA ANUGRAH","L"],["0097688448","YOGA SUPRIATNA","L"],["0104234679","YULIANTI","P"],["0092642865","YUSUF MUBAROK","L"],["0101047279","ZAHRA","P"]],
+"XI4":[["3108105650","AHDAN EKA MAULANA PUTRA","L"],["0108455587","ALYA ZAHRA FADILA","P"],["0097676960","AMELIA PUTRI","P"],["0094927439","ANDELA IMANIAR PUTRI","P"],["0104293912","ANDRA DIMAS SAPUTRA","L"],["0101657463","ANNISA","P"],["0099895540","AZIZAH KHAIRUN NISA","P"],["0092998482","DENIS RUDISTA","L"],["0094183654","DHINI SEPTIANI","P"],["0108240669","ELSA NURHALIZAH","P"],["0102047559","EPA MULYATI","P"],["0106673069","GIA RISGYANI","P"],["0094042543","LUKMANUL HAKIM","L"],["0099279647","M. ILHAM SAPUTRA","L"],["0093447000","M.IRGI FIRMANSYAH","L"],["0108344365","MARYAM BILQIS","P"],["0109457340","MUHAMAD ABDUL FATAH","L"],["0101975976","MUHAMAD ARIA HANAPI","L"],["0104640191","MUHAMAD FAHRI PIRDAUS PATTY","L"],["0094695077","MUHAMAD RIZKI AGUNG FAUZAN","L"],["0107872396","MUHAMMAD RIFALDI","L"],["3096658513","NABILA OKTAVIA","P"],["0091471467","NENG ELA","P"],["0108475871","NISA MERISA","P"],["0095277784","NURUL ALIA FITRIANI","P"],["3101812604","PARIDA","P"],["0109431709","REHAN ABDILAH","L"],["0093151942","REZA AIDIL AZIZ","L"],["0099217926","RIZWAN MAULANA","L"],["3103402537","SALSABILA PUTRI","P"],["0095410251","SELA AYU LESTARI","P"],["0099176601","SITI AMINAH","P"],["0094348298","SITI FITRIANI NURSA'ADAH","P"],["3096174903","SITI NURAENI","P"],["0093016003","SITI NURSELA","P"],["0095927727","WILDAN HABATULLAH","L"],["0109344102","WINA WIDIANTI","P"],["0107342848","YOPITA PEBRIANTI","P"]],
+"XII1":[["0094314938","ANDRIANSAH","L"],["0085654610","ANISA RAIHAN PADILA","P"],["0092601406","ARIEL PAJAR JUNIANSAH","L"],["0095916912","DEDE RANTIKA","P"],["0089758126","DEDE SOPYAN","L"],["0081374902","DESTRIA MAHSYA GUSTIAWAN","P"],["0095535419","DIMAS PRADITYA ALAMSYAH","L"],["0099867420","ELSA","P"],["0081609314","EUNCEP ABDUL HANAN","L"],["0083144301","GILANG RAMADHAN","L"],["0092075496","HADIYATI","P"],["0083246902","HERA KHUMAERAH","P"],["0085124780","LENI RAHMAWATI","P"],["3080802485","LUHUNG GALIH PINUJI","L"],["0097381991","LUSI SUSILAWATI","P"],["0085731979","MARSHAL SYAM","L"],["0096317948","MELA FEBRIANI","P"],["0096017367","MIRDA SAEVI HASANAH","P"],["0099265892","MIRNA WATI DEWI","P"],["0097116501","MUHAMAD AFDAL ALFARIZKI","L"],["0096081128","MUHAMAD SANDI SAPUTRA","L"],["0085512935","MUHAMMAD RENDI IRAWAN","L"],["0086778156","MUTIA LISTIANI","P"],["0095263526","NENDEN SOLIHAH","P"],["0081969942","PINA ANGGRAENI","P"],["0096011604","RAMA ADITYA RAHMAN","L"],["0093067749","RAMDANI DIJAYA","L"],["0081531872","REZA FIRLAMBANG WIDANA","L"],["0096710864","REZKY HIDAYATULLOH","L"],["0086726190","RIFAL MAULANA","L"],["0083343370","RIYANDI","L"],["0087470324","RIZAL RAMADHAN","L"],["0088978705","SITI LATIFAH","P"],["0091315618","SITI MARIAM","P"],["0094981168","SUPYAN SAURI","L"]],
+"XII2":[["0098168622","AILSYA JULIANTI","P"],["3088541567","ALPI HASNIA","P"],["0089696268","ANGGI SUSIATI","P"],["0088675617","APEP APRIANSAH","L"],["0084335486","ARDELLENA NEZA","P"],["0099766190","BASTIAN MUHAMAD AGUNG","L"],["0097220343","CAHYA PURNAMA","L"],["0082892663","DENI FAISAL","L"],["0086518997","DEVI YULIAN AGUSTINA","P"],["0088176680","DIKA ANGGARA","L"],["0086548658","DINDA AGUSTINA","P"],["0095750438","DISTRA AULIYAFITRI","P"],["0097563479","HANIP RISAL MUTAKIN","L"],["0092649952","JUWITA HARDIANTI","P"],["0086150629","M. REHAN AGUS REZA","L"],["0087592101","MUHAMAD FAUZI","L"],["3089853529","MUHAMAD RIZKI RAMADAN","L"],["0082818384","MUHAMMAD RAYA AL BUDIMAN","L"],["0086263384","NAZHUA NOVELIA","P"],["3080697168","PUJI RAHMAWATI","P"],["3083234873","RAHAYU APRILIANI","P"],["3082634245","RAMLAN BENZANA","L"],["0089992297","REFAL RIZKIADI","L"],["0088535076","RIAN KURNIAWAN","L"],["0073402315","SALWA MAULIDINA AMALIA","P"],["0086517656","SATRIA IMA RAHAYU","L"],["0097954712","SHIFA AZZAHRA","P"],["0092734400","SINDY SOLIHATI","P"],["0093293437","SIPA","P"],["3087283584","SIPA AULIA","P"],["0099240647","SITI HALIJAH","P"],["0097100554","SITI JENAB","P"],["0082008356","TRIA SALSABILA","P"]],
+"XII3":[["0099125413","AGUS MAULANA","L"],["3098089734","AI NURSANI","P"],["3080311631","AISAH NURAENI","P"],["0109690978","ALHAMBRA GRANADA TIKBI","L"],["0092726055","AMELIA HAPSARI","P"],["0084640848","ANISA PITRIA","P"],["0099712047","AURA RAHMAWATI","P"],["0092382416","BAMBANG SIDIQ FAUZAN","L"],["0071709298","DEDE RINI","P"],["0084147345","DENDEN DERMAWAN TP","L"],["0076199025","DENDI TAUFAL","L"],["0096861637","DESTI DEWI ARIYANI","P"],["0092685110","DIO ALFIDI","L"],["0081556959","GALIH AGUSTIAN","L"],["0094861241","HOTIMAH","P"],["0086950536","IRVA SELA FAUZIAH","P"],["0098286277","JUNAEDI","L"],["0082627650","KEISYA AULIA AGUSTINA","P"],["0085219274","LESI NURPAJLI","L"],["0075439614","MUHAMMAD TAOFIK HIDAYAT","L"],["0102764471","NURANI SRI DETI","P"],["0084906610","NURHAYATI","P"],["0089915686","PIKAL MAULANA","L"],["0074193571","RAHMA AULIA","P"],["0092554876","RAHMAWATI","P"],["0091755530","REYHAN RIDWAN ZAMIL","L"],["0089648793","SALSA BILA DWI OMAIRA","P"],["0082509082","SIGIT AGUSTIAN","L"],["0089419472","SILVA HARYANI TAUFIK","P"],["0088331277","SRI AULIA SUSANTI","P"],["0085610329","SUSILAEWATI","P"],["0089194252","TIA RAHMAWATI","P"],["0095423918","WARID","L"]],
+"XII4":[["0082248433","AGUS PURNAMA","L"],["0081001855","AGUS SYAHDAN","L"],["0072703030","ALYA KHOERUNISA","P"],["0088903945","ANGGA AHMAD HIDAYAT","L"],["0085525138","ARIF JUNAEDI","L"],["3099935622","CHELSEA RAMDHANIA","P"],["3084007470","CORNELIA WIGNYA KIRANA KUSUMAWIJAYA","P"],["0096151590","DINDA SETIANI","P"],["0098824756","GILANG RAMADHAN","L"],["0098037147","LISNA NUR APRILIANI","P"],["0087603406","M. ABDUL LATIF","L"],["3080120857","M. ADITYA NURFAUZI","L"],["0098813317","MELATI","P"],["0085772805","MUHAMAD ADI LAKSANA","L"],["3084899228","MUHAMAD ARIF PERMANA","L"],["0089028858","MUHAMAD FARID","L"],["0088404174","NANI","P"],["0088387206","NINA","P"],["0091237198","PUTRI LESTARI","P"],["3099481630","PUTRI YASMIN","P"],["3093381793","RADITYA PRATAMA","L"],["0081010004","RAMDANI","L"],["0084221542","RANDI","L"],["0091333104","RESVITA ANASYA PUTRI","P"],["0077547295","RIZWAN MAULANA","L"],["3093610626","SEINA TIARA","P"],["3089105058","SELA SELPIA","P"],["3083125827","SERLI DAMAYANTI","P"],["0088977319","SEVA RIZKY RAMADAN","L"],["3088363688","SIGIT ALFARIZI","L"],["0085908830","SITI NURLINA WATI","P"],["3091599625","SITI SYPA","P"],["0099962458","SIYFA NURPANI","P"],["0093228784","ZAHRA NUR ANGGRAENI PUTRI RAHAYU","P"]]
+};
+
+const CLASS_ORDER = ["X1","X2","X3","X4","X5","X6","XI1","XI2","XI3","XI4","XII1","XII2","XII3","XII4"];
+const CLASS_LABELS = {
+  X1:"X-1", X2:"X-2", X3:"X-3", X4:"X-4", X5:"X-5", X6:"X-6",
+  XI1:"XI-1", XI2:"XI-2", XI3:"XI-3", XI4:"XI-4",
+  XII1:"XII-1", XII2:"XII-2", XII3:"XII-3", XII4:"XII-4"
+};
+const DEFAULT_QUESTS = [
+  {id:"q_hiragana", name:"Hafalan Hiragana", exp:20},
+  {id:"q_katakana", name:"Hafalan Katakana", exp:20},
+  {id:"q_kosakata", name:"Kuis Kosakata", exp:15},
+  {id:"q_menulis", name:"Tugas Menulis Kalimat", exp:25}
+];
+
+/* ================= STATE ================= */
+let currentClass = CLASS_ORDER[0];
+let currentSort = "default";
+let searchQuery = "";
+let students = [];   // working array for current class {nisn,name,gender,exp,quests:{}}
+let quests = [];      // global quest list
+let questModalTargetId = null;
+
+/* ================= EXP / LEVEL MATH ================= */
+function expForLevel(level){ // exp needed to go from level to level+1
+  return 40 + (level-1)*12;
+}
+function cumulativeExpAtLevel(level){ // total exp to REACH this level (i.e. level start)
+  let total = 0;
+  for(let i=1;i<level;i++){ total += expForLevel(i); }
+  return total;
+}
+function levelFromExp(exp){
+  let level = 1;
+  while(level < MAX_LEVEL && exp >= cumulativeExpAtLevel(level+1)){
+    level++;
+  }
+  return level;
+}
+function rankForLevel(level){
+  return RANKS.find(r => level >= r.min && level <= r.max) || RANKS[RANKS.length-1];
+}
+function levelProgress(exp){
+  const level = levelFromExp(exp);
+  const base = cumulativeExpAtLevel(level);
+  const next = level >= MAX_LEVEL ? base : cumulativeExpAtLevel(level+1);
+  const span = Math.max(1, next-base);
+  const cur = exp-base;
+  return {level, cur, span, pct: level>=MAX_LEVEL ? 100 : Math.min(100, Math.round(cur/span*100)), maxed: level>=MAX_LEVEL};
+}
+
+/* ================= STORAGE (Supabase) =================
+   Struktur data:
+   - tabel "rosters", 1 baris per kelas (class_key = kunci kelas) -> {students jsonb, updated}
+   - tabel "quests", 1 baris (id='quests') -> {list jsonb}
+   Semua orang boleh READ (diatur lewat RLS policy select). Hanya admin (login) yang boleh
+   WRITE (diatur lewat RLS policy insert/update di setup.sql).
+================================================= */
+async function loadClass(classKey){
+  let roster = ROSTERS[classKey].map(([nisn,name,gender]) => ({
+    nisn, name, gender, exp:0, quests:{}
+  }));
+  try{
+    const { data, error } = await sb.from('rosters').select('students').eq('class_key', classKey).maybeSingle();
+    if(error) throw error;
+    if(data && data.students){
+      const byNisnName = {};
+      (data.students||[]).forEach(s => byNisnName[s.nisn+"|"+s.name] = s);
+      roster = roster.map(s => {
+        const found = byNisnName[s.nisn+"|"+s.name];
+        return found ? {...s, exp: found.exp||0, quests: found.quests||{}} : s;
+      });
+    }
+  }catch(e){ console.error("Gagal memuat data kelas:", e); }
+  return roster;
+}
+async function saveClass(classKey, rosterData){
+  if(!isAdmin) return; // jaga-jaga di sisi klien; aturan sebenarnya ada di RLS policy Supabase
+  try{
+    const { error } = await sb.from('rosters').upsert({ class_key: classKey, students: rosterData, updated: Date.now() });
+    if(error) throw error;
+  }catch(e){ console.error("Gagal menyimpan progres kelas:", e); alert("Gagal menyimpan: pastikan kamu login sebagai admin dan koneksi internet aktif."); }
+}
+async function loadQuests(){
+  try{
+    const { data, error } = await sb.from('quests').select('list').eq('id','quests').maybeSingle();
+    if(error) throw error;
+    if(data && data.list) return data.list;
+  }catch(e){ console.error("Gagal memuat quest:", e); }
+  return DEFAULT_QUESTS.slice();
+}
+async function saveQuests(list){
+  if(!isAdmin) return;
+  try{
+    const { error } = await sb.from('quests').upsert({ id: 'quests', list });
+    if(error) throw error;
+  }catch(e){ console.error("Gagal menyimpan quest:", e); alert("Gagal menyimpan quest: pastikan kamu login sebagai admin."); }
+}
+
+/* ================= AUTH (ADMIN LOGIN) ================= */
+const loginModal = document.getElementById('loginModal');
+const modeBadge = document.getElementById('modeBadge');
+const loginBtn = document.getElementById('loginBtn');
+const logoutBtn = document.getElementById('logoutBtn');
+const loginError = document.getElementById('loginError');
+
+loginBtn.addEventListener('click', () => {
+  loginError.textContent = "";
+  loginModal.classList.add('show');
+});
+document.getElementById('loginModalClose').addEventListener('click', () => {
+  loginModal.classList.remove('show');
+});
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  loginError.textContent = "";
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if(error){
+    loginError.textContent = "Login gagal. Periksa email/kata sandi.";
+    return;
+  }
+  loginModal.classList.remove('show');
+  document.getElementById('loginForm').reset();
+});
+logoutBtn.addEventListener('click', () => sb.auth.signOut());
+
+function applyAuthState(session){
+  const user = session ? session.user : null;
+  isAdmin = !!(user && user.email && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase());
+  modeBadge.textContent = isAdmin ? "Mode: Admin" : "Mode: Lihat";
+  modeBadge.className = "mode-badge " + (isAdmin ? "admin" : "guest");
+  loginBtn.style.display = isAdmin ? "none" : "inline-block";
+  logoutBtn.style.display = isAdmin ? "inline-block" : "none";
+  // render ulang supaya kontrol edit muncul/hilang sesuai peran
+  if(students.length) renderRoster();
+  if(quests) renderQuests();
+}
+
+sb.auth.onAuthStateChange((_event, session) => applyAuthState(session));
+sb.auth.getSession().then(({ data }) => applyAuthState(data.session));
+
+/* ================= UI: RANK LADDER ================= */
+function renderLadder(activeRankKey){
+  const wrap = document.getElementById('rankLadder');
+  wrap.innerHTML = "";
+  RANKS.forEach(r => {
+    const step = document.createElement('div');
+    step.className = 'ladder-step' + (r.key===activeRankKey ? ' active' : '');
+    step.style.color = r.color;
+    step.innerHTML = `
+      <div class="bar" style="background:${r.color}; height:${10 + RANKS.indexOf(r)*8}px;"></div>
+      <span class="kanji">${r.kanji}</span>
+      <span class="name">${r.name}</span>
+      <span class="lv">Lv ${r.min}-${r.max}</span>
+    `;
+    wrap.appendChild(step);
+  });
+}
+
+/* ================= UI: CLASS PICKER ================= */
+function populateClassPicker(){
+  const sel = document.getElementById('classPicker');
+  sel.innerHTML = CLASS_ORDER.map(c => `<option value="${c}">${CLASS_LABELS[c]}</option>`).join("");
+  sel.value = currentClass;
+  sel.addEventListener('change', async () => {
+    currentClass = sel.value;
+    await refreshClass();
+  });
+}
+function updateClassMeta(){
+  const L = students.filter(s=>s.gender==="L").length;
+  const P = students.filter(s=>s.gender==="P").length;
+  document.getElementById('classMeta').innerHTML =
+    `<span>L: <b>${L}</b></span><span>P: <b>${P}</b></span><span>Total: <b>${students.length}</b></span>`;
+}
+
+/* ================= UI: QUEST PANEL ================= */
+function renderQuests(){
+  document.getElementById('questForm').style.display = isAdmin ? "flex" : "none";
+  document.getElementById('resetClassBtn').style.display = isAdmin ? "inline-block" : "none";
+
+  const list = document.getElementById('questList');
+  const emptyNote = document.getElementById('questEmptyNote');
+  list.innerHTML = "";
+  emptyNote.style.display = quests.length ? "none" : "block";
+  quests.forEach(q => {
+    const done = students.filter(s => s.quests && s.quests[q.id]).length;
+    const item = document.createElement('div');
+    item.className = 'quest-item';
+    item.innerHTML = `
+      <div>
+        <span class="qname">${escapeHtml(q.name)}</span>
+        <span class="qexp">+${q.exp} EXP · ${done}/${students.length} selesai</span>
+      </div>
+      <div class="qbtns">
+        ${isAdmin ? `<button class="btn btn-gold btn-small" data-award="${q.id}">Beri EXP</button>
+        <button class="icon-btn" data-delquest="${q.id}" title="Hapus quest">✕</button>` : ''}
+      </div>
+    `;
+    list.appendChild(item);
+  });
+  list.querySelectorAll('[data-award]').forEach(btn=>{
+    btn.addEventListener('click', () => openQuestModal(btn.getAttribute('data-award')));
+  });
+  list.querySelectorAll('[data-delquest]').forEach(btn=>{
+    btn.addEventListener('click', async () => {
+      if(!confirm("Hapus quest ini? EXP yang sudah diberikan tidak akan ditarik kembali.")) return;
+      quests = quests.filter(q => q.id !== btn.getAttribute('data-delquest'));
+      await saveQuests(quests);
+      renderQuests();
+    });
+  });
+}
+
+document.getElementById('questForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if(!isAdmin) return;
+  const name = document.getElementById('questName').value.trim();
+  const exp = parseInt(document.getElementById('questExp').value, 10);
+  if(!name || !exp || exp<1) return;
+  quests.push({id:"q_"+Date.now(), name, exp});
+  await saveQuests(quests);
+  document.getElementById('questName').value = "";
+  document.getElementById('questExp').value = 15;
+  renderQuests();
+});
+
+function openQuestModal(questId){
+  questModalTargetId = questId;
+  const q = quests.find(x=>x.id===questId);
+  document.getElementById('questModalTitle').textContent = `Beri EXP: ${q ? q.name : ''}`;
+  const listEl = document.getElementById('questModalList');
+  listEl.innerHTML = students.map(s => `
+    <label>
+      <input type="checkbox" data-nisn="${s.nisn}" data-name="${escapeAttr(s.name)}" ${s.quests && s.quests[questId] ? 'checked' : ''}>
+      <span>${escapeHtml(s.name)}</span>
+    </label>
+  `).join("");
+  listEl.querySelectorAll('input[type=checkbox]').forEach(chk => {
+    chk.addEventListener('change', async () => {
+      const nisn = chk.getAttribute('data-nisn');
+      const name = chk.getAttribute('data-name');
+      const student = students.find(s => s.nisn===nisn && s.name===name);
+      if(!student) return;
+      const q = quests.find(x=>x.id===questId);
+      if(!q) return;
+      student.quests = student.quests || {};
+      if(chk.checked){
+        student.quests[questId] = true;
+        awardExp(student, q.exp, `Quest: ${q.name}`);
+      } else {
+        delete student.quests[questId];
+        awardExp(student, -q.exp, `Batal quest: ${q.name}`, true);
+      }
+      await saveClass(currentClass, students);
+      renderRoster();
+      renderQuests();
+    });
+  });
+  document.getElementById('questModal').classList.add('show');
+}
+document.getElementById('questModalClose').addEventListener('click', () => {
+  document.getElementById('questModal').classList.remove('show');
+});
+
+/* ================= UI: ROSTER ================= */
+function badgeSVG(pct, color){
+  const r = 23, c = 2*Math.PI*r;
+  const offset = c - (pct/100)*c;
+  return `
+  <svg width="52" height="52" viewBox="0 0 52 52">
+    <circle cx="26" cy="26" r="${r}" fill="none" stroke="rgba(0,0,0,.12)" stroke-width="4"/>
+    <circle cx="26" cy="26" r="${r}" fill="none" stroke="${color}" stroke-width="4"
+      stroke-dasharray="${c}" stroke-dashoffset="${offset}" stroke-linecap="round"
+      transform="rotate(-90 26 26)"/>
+    <circle cx="26" cy="26" r="18" fill="${color}"/>
+  </svg>`;
+}
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function escapeAttr(str){ return escapeHtml(str); }
+
+function sortedStudents(){
+  let list = students.filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  if(currentSort==="exp") list = list.slice().sort((a,b)=>b.exp-a.exp);
+  else if(currentSort==="name") list = list.slice().sort((a,b)=>a.name.localeCompare(b.name));
+  return list;
+}
+
+function renderLeaderboard(){
+  const lb = document.getElementById('leaderboard');
+  const top = students.slice().sort((a,b)=>b.exp-a.exp).slice(0,5);
+  lb.innerHTML = top.map((s,i) => {
+    const prog = levelProgress(s.exp);
+    return `<div class="lb-card">
+      <span class="lb-rank">#${i+1}</span>
+      <div class="lb-name">${escapeHtml(s.name)}</div>
+      <div class="lb-exp">Lv ${prog.level} · ${s.exp} EXP</div>
+    </div>`;
+  }).join("") || '<p class="empty-note">Belum ada EXP diberikan di kelas ini.</p>';
+}
+
+function renderRoster(){
+  updateClassMeta();
+  renderLeaderboard();
+  const grid = document.getElementById('rosterGrid');
+  const list = sortedStudents();
+  grid.innerHTML = list.map(s => {
+    const prog = levelProgress(s.exp);
+    const rank = rankForLevel(prog.level);
+    const colorResolved = getComputedStyle(document.documentElement).getPropertyValue(rank.color.replace('var(','').replace(')','')) || '#999';
+    return `
+    <div class="card" data-nisn="${s.nisn}" data-name="${escapeAttr(s.name)}">
+      <div class="card-top">
+        <div class="badge">${badgeSVG(prog.pct, colorResolved.trim())}
+          <span class="kanji" style="position:relative;">${rank.kanji}</span>
+        </div>
+        <div class="card-id">
+          <div class="card-name">${escapeHtml(s.name)}</div>
+          <div class="card-sub">${s.nisn==='-' ? 'NISN -' : s.nisn} · ${s.gender}</div>
+          <div class="card-rankline" style="color:${colorResolved.trim()}">${rank.name} · Lv ${prog.level}${prog.maxed ? ' (MAX)' : ''}</div>
+        </div>
+      </div>
+      <div class="expbar-wrap">
+        <div class="expbar-labels"><span>EXP</span><span>${prog.maxed ? s.exp+' (MAX)' : prog.cur+' / '+prog.span}</span></div>
+        <div class="expbar"><div class="expbar-fill" style="width:${prog.pct}%; background:${colorResolved.trim()};"></div></div>
+      </div>
+      ${isAdmin ? `
+      <div class="card-actions">
+        <button class="quick-btn" data-quick="3">+3 Aktif</button>
+        <button class="quick-btn plus5" data-quick="5">+5 Tanya</button>
+        <button class="quick-btn plus10" data-quick="10">+10 Jawab</button>
+      </div>
+      <div class="custom-exp">
+        <input type="number" placeholder="±EXP" class="custom-input">
+        <button class="custom-apply">Beri</button>
+      </div>` : ''}
+    </div>`;
+  }).join("") || '<p class="empty-note">Tidak ada siswa yang cocok dengan pencarian.</p>';
+
+  if(!isAdmin) return;
+  grid.querySelectorAll('.card').forEach(card => {
+    const nisn = card.getAttribute('data-nisn');
+    const name = card.getAttribute('data-name');
+    const student = students.find(s => s.nisn===nisn && s.name===name);
+    card.querySelectorAll('[data-quick]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const amt = parseInt(btn.getAttribute('data-quick'),10);
+        awardExp(student, amt, btn.textContent.trim());
+        await saveClass(currentClass, students);
+        renderRoster();
+      });
+    });
+    const customInput = card.querySelector('.custom-input');
+    card.querySelector('.custom-apply').addEventListener('click', async () => {
+      const val = parseInt(customInput.value, 10);
+      if(!val) return;
+      awardExp(student, val, val>0 ? 'EXP manual' : 'Koreksi EXP');
+      customInput.value = "";
+      await saveClass(currentClass, students);
+      renderRoster();
+    });
+  });
+}
+
+/* ================= EXP AWARD + TOASTS ================= */
+function awardExp(student, amount, reason, silent){
+  const before = levelFromExp(student.exp);
+  student.exp = Math.max(0, student.exp + amount);
+  const after = levelFromExp(student.exp);
+  if(!silent){
+    showToast(`${student.name}: ${amount>0?'+':''}${amount} EXP <span style="opacity:.7">(${reason})</span>`, false);
+  }
+  if(after > before){
+    const rank = rankForLevel(after);
+    showToast(`⚔️ ${student.name} naik ke Level ${after} — ${rank.name} (${rank.kanji})!`, true);
+  }
+}
+function showToast(html, levelup){
+  const container = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = 'toast' + (levelup ? ' levelup':'');
+  t.innerHTML = levelup ? `<div class="t-title">Naik Level!</div>${html}` : html;
+  container.appendChild(t);
+  setTimeout(()=>{ t.style.opacity='0'; t.style.transition='opacity .4s'; setTimeout(()=>t.remove(),400); }, levelup ? 3200 : 2000);
+}
+
+/* ================= SORT / SEARCH ================= */
+document.querySelectorAll('.sort-buttons button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.sort-buttons button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    currentSort = btn.getAttribute('data-sort');
+    renderRoster();
+  });
+});
+document.getElementById('searchStudent').addEventListener('input', (e) => {
+  searchQuery = e.target.value;
+  renderRoster();
+});
+
+/* ================= RESET ================= */
+document.getElementById('resetClassBtn').addEventListener('click', async () => {
+  if(!isAdmin) return;
+  if(!confirm(`Reset semua progres EXP & quest untuk kelas ${CLASS_LABELS[currentClass]}? Tindakan ini tidak bisa dibatalkan.`)) return;
+  students = ROSTERS[currentClass].map(([nisn,name,gender]) => ({nisn,name,gender,exp:0,quests:{}}));
+  await saveClass(currentClass, students);
+  renderRoster();
+  renderQuests();
+});
+
+/* ================= CLASS SWITCH ================= */
+async function refreshClass(){
+  students = await loadClass(currentClass);
+  renderLadder(null);
+  renderRoster();
+  renderQuests();
+}
+
+/* ================= INIT ================= */
+(async function init(){
+  populateClassPicker();
+  quests = await loadQuests();
+  await refreshClass();
+})();
+</script>
+</body>
+</html>
